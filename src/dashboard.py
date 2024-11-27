@@ -65,8 +65,8 @@ class ConsensusDashboard:
 
 
         self.layout.split_column(
-            Layout(name="header", ratio=1),
-            Layout(name="main", ratio=5),
+            Layout(name="header", ratio=2),
+            Layout(name="main", ratio=8),
             Layout(name="footer", ratio=1)
         )
 
@@ -334,10 +334,6 @@ class ConsensusDashboard:
                     log_panel = Panel(log_renderable, expand=True, box=box.SIMPLE)
                     self.layout["header"]["logs"].update(log_panel)
 
-                    if not hasattr(self, "_last_upgrade_update") or (asyncio.get_event_loop().time() - self._last_upgrade_update) >= self.refresh_upgarde_plan:
-                        await self.update_upgrade()
-                        self._last_upgrade_update = asyncio.get_event_loop().time()
-
                     if not hasattr(self, "_last_node_status_update") or (asyncio.get_event_loop().time() - self._last_node_status_update) >= self.refresh_node:
                         await self.update_node_status()
                         self._last_node_status_update = asyncio.get_event_loop().time()
@@ -353,6 +349,12 @@ class ConsensusDashboard:
                     if not hasattr(self, "_last_block_time_update") or (asyncio.get_event_loop().time() - self._last_block_time_update) >= self.refresh_block_time:
                         await self.update_block_time()
                         self._last_block_time_update = asyncio.get_event_loop().time()
+
+                    if not hasattr(self, "_last_upgrade_update") or (asyncio.get_event_loop().time() - self._last_upgrade_update) >= self.refresh_upgarde_plan:
+                        await self.update_upgrade()
+                        self._last_upgrade_update = asyncio.get_event_loop().time()
+                        if self.ugrade_height and self.node_height and self.block_time:
+                            self.update_upgrade_time()
 
 
                     consensus_info = ""
@@ -385,7 +387,6 @@ class ConsensusDashboard:
                         network_info += f"[bold cyan]Block time[/bold cyan] {str(self.block_time):.4}\n"
 
                     if self.ugrade_height and self.node_height:
-                        self.update_upgrade_time()
                         blocks_left = self.ugrade_height - self.node_height
                         network_info += f"[bold cyan]Upgrade:[/bold cyan] {self.ugrade_name} | Height: {self.ugrade_height} | Blocks left: {blocks_left}"
                         if self.upgrade_time_unix:

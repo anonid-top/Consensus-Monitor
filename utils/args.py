@@ -44,12 +44,12 @@ def parse_args():
         help="Instead of emojis/symbols output validator's votes (hashes)"
     )
 
-    parser.add_argument('--refresh-per-second', type=float, help='Refresh rate of the table per second', required=False, default=5)
-    parser.add_argument('--refresh-validators', type=float, help='Refresh validators every N second', required=False, default=10)
-    parser.add_argument('--refresh-consensus-state', type=float, help='Refresh consensus state every N second', required=False, default=0.5)
+    parser.add_argument('--refresh-per-second', type=float, help='Refresh rate of the table per second', required=False, default=3)
+    parser.add_argument('--refresh-validators', type=float, help='Refresh validators every N second', required=False, default=30)
+    parser.add_argument('--refresh-consensus-state', type=float, help='Refresh consensus state every N second', required=False, default=3)
     parser.add_argument('--refresh-upgarde-plan', type=float, help='Refresh upgarde plan every N second', required=False, default=60)
     parser.add_argument('--refresh-block-time', type=float, help='Refresh upgarde plan every N second', required=False, default=120)
-    parser.add_argument('--refresh-node', type=float, help='Refresh latest height & node sync status every N second', required=False, default=5)
+    parser.add_argument('--refresh-node', type=float, help='Refresh latest height & node sync status every N second', required=False, default=10)
 
     parser.add_argument(
         '--tz',
