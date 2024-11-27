@@ -5,6 +5,7 @@ sudo apt update && sudo apt install python3 python3-venv git -y
 ### 2. Clone the repository
 ```bash
 git clone https://github.com/trusted-point/Rich-Consensus.git
+cd Story-Consensus-Metrics
 ```
 ### 3. Activate virtual environment (Optional)
 ```bash
