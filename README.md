@@ -19,7 +19,7 @@ pip3 install -r requirements.txt
 ```
 ### 5. Start the app
 ```bash
-python main.py --rpc https://story-testnet-cosmos-rpc.crouton.digital
+python3 main.py --rpc https://story-testnet-cosmos-rpc.crouton.digital
 ```
 #### P.S. Flickering console will be fixed (We hope) with the next release :) 
 ### Falgs and params
