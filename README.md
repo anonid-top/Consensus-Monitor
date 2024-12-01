@@ -5,7 +5,7 @@ sudo apt update && sudo apt install python3 python3-venv git -y
 ### 2. Clone the repository
 ```bash
 git clone https://github.com/trusted-point/Rich-Consensus.git
-cd cd Rich-Consensus
+cd Rich-Consensus
 ```
 ### 3. Activate virtual environment (Optional)
 ```bash
@@ -21,7 +21,7 @@ pip3 install -r requirements.txt
 python3 main.py --rpc https://story-testnet-cosmos-rpc.crouton.digital
 ```
 #### P.S. Flickering console will be fixed (We hope) with the next release :) 
-### Falgs and params
+### Flags and parameters
 ```bash
 Global arguments for the application
 
@@ -38,10 +38,10 @@ options:
                         Refresh validators every N second (default: 30)
   --refresh-consensus-state REFRESH_CONSENSUS_STATE
                         Refresh consensus state every N second (default: 3)
-  --refresh-upgarde-plan REFRESH_UPGARDE_PLAN
-                        Refresh upgarde plan every N second (default: 60)
+  --refresh-upgrade-plan REFRESH_UPGRADE_PLAN
+                        Refresh upgrade plan every N second (default: 60)
   --refresh-block-time REFRESH_BLOCK_TIME
-                        Refresh upgarde plan every N second (default: 120)
+                        Refresh block time every N second (default: 120)
   --refresh-node REFRESH_NODE
                         Refresh latest height & node sync status every N second (default: 10)
   --tz TZ               Timezone offset (e.g. +2, -5.5, +0). Must be between -12 and +14. (default: UTC)
