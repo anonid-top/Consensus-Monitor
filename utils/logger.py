@@ -3,6 +3,7 @@ import os
 from logging.config import dictConfig
 from utils.args import args
 
+
 def set_up_logger(log_lvl: str, log_path: str) -> logging.Logger:
     logging_config = {
         "version": 1,
@@ -13,12 +14,12 @@ def set_up_logger(log_lvl: str, log_path: str) -> logging.Logger:
                 "datefmt": "%Y-%m-%d %H:%M:%S",
                 "()": "colorlog.ColoredFormatter",
                 "log_colors": {
-                    'INFO': 'bold_green',
-                    'WARNING': 'bold_yellow',
-                    'ERROR': 'bold_red',
-                    'CRITICAL': 'bold_purple',
-                    'DEBUG': 'bold_cyan',
-                    'TRACE': 'bold_light_blue'
+                    "INFO": "bold_green",
+                    "WARNING": "bold_yellow",
+                    "ERROR": "bold_red",
+                    "CRITICAL": "bold_purple",
+                    "DEBUG": "bold_cyan",
+                    "TRACE": "bold_light_blue",
                 },
             },
             "file": {
@@ -34,7 +35,7 @@ def set_up_logger(log_lvl: str, log_path: str) -> logging.Logger:
             #     "level": log_lvl.upper(),
             # },
             "rich_panel": {
-                "class":  "utils.custom_handler.RichPanelLogHandler",
+                "class": "utils.custom_handler.RichPanelLogHandler",
                 "level": log_lvl.upper(),
                 "max_logs": 5,
                 "formatter": "default",
@@ -47,7 +48,7 @@ def set_up_logger(log_lvl: str, log_path: str) -> logging.Logger:
                 "level": log_lvl.upper(),
                 "propagate": False,
             }
-        }
+        },
     }
 
     if log_path:
@@ -60,7 +61,7 @@ def set_up_logger(log_lvl: str, log_path: str) -> logging.Logger:
         }
         for logger_name in logging_config["loggers"]:
             logging_config["loggers"][logger_name]["handlers"].append("file")
-        
+
         logs_dir = os.path.dirname(log_path)
         if logs_dir and not os.path.exists(logs_dir):
             os.makedirs(logs_dir)
@@ -70,6 +71,5 @@ def set_up_logger(log_lvl: str, log_path: str) -> logging.Logger:
 
     return logger
 
+
 logger = set_up_logger(log_lvl=args.log_lvl, log_path=args.log_path)
-
-
