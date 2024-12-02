@@ -108,7 +108,7 @@ class AioHttpCalls:
                         if response_value:
                             return await callback(base64.b64decode(response_value))
                         else:
-                            logger.warning(
+                            logger.debug(
                                 f"ABCI returned 0 code, but with empty response [{payload}]"
                             )
                     else:
