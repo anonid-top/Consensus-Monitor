@@ -11,7 +11,7 @@ def set_up_logger(log_lvl: str, log_path: str) -> logging.Logger:
         "formatters": {
             "default": {
                 "format": "\033[90m%(asctime)s\033[m]%(log_color)s |%(log_color)-10s%(levelname)-8s|%(reset)s \033[0m%(message)s\033[m",
-                "datefmt": "%Y-%m-%d %H:%M:%S",
+                "datefmt": "%H:%M:%S",
                 "()": "colorlog.ColoredFormatter",
                 "log_colors": {
                     "INFO": "bold_green",

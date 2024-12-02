@@ -13,7 +13,6 @@ from datetime import datetime, timezone, timedelta
 from typing import Callable
 from aiohttp import ClientSession
 
-
 class ConsensusDashboard:
     def __init__(
         self,
@@ -52,7 +51,6 @@ class ConsensusDashboard:
         self.upgrade_name = None
         self.upgrade_height = None
         self.upgrade_time_left_seconds = None
-        self.upgrade_time_unix = None
 
         self.online_validators = 0
 
@@ -86,10 +84,6 @@ class ConsensusDashboard:
             Layout(name="logs", ratio=1),
         )
 
-        # self.layout["footer"].split_row(
-        # Layout(name="votes_commits_step_bar"),
-        # )
-
     async def update_node_status(self):
         try:
             async with AioHttpCalls(rpc=self.rpc, session=self.session) as session:
@@ -121,7 +115,7 @@ class ConsensusDashboard:
                 if "height" in upgrade_plan:
                     self.upgrade_height = int(upgrade_plan["height"])
                     self.upgrade_name = upgrade_plan.get("name", "N/A")
-                logger.info("Updated upgrade plan")
+                logger.info(f"Updated upgrade plan [{self.upgrade_name} | {self.upgrade_height}]")
             else:
                 logger.info("No upgrade detected")
                 self.upgrade_height = None
@@ -175,7 +169,7 @@ class ConsensusDashboard:
                             {
                                 "moniker": _moniker,
                                 "hex": _hex,
-                                "vp": round((_tokens / total_stake) * 100, 4),
+                                "vp": round((_tokens / total_stake) * 100, 4)
                             }
                         )
 
@@ -196,9 +190,23 @@ class ConsensusDashboard:
     async def update_block_time(self):
         try:
             async with AioHttpCalls(rpc=self.rpc, session=self.session) as session:
+                node_status = await session.get_rpc_status()
+                if not node_status:
+                    logger.error(f"Failed to query node height to evaluate block time")
+                    return
+
+                node_height = (
+                    int(node_status["sync_info"]["latest_block_height"])
+                    if node_status.get("sync_info", {}).get("latest_block_height")
+                    else None
+                )
+                if not node_height:
+                    logger.error("Failed to get latest node height to evaluate block time")
+                    return
+
                 tasks = []
                 for i in range(self.block_time_check_number):
-                    tasks.append(session.get_block(height=self.node_height - i))
+                    tasks.append(session.get_block(height=node_height - i))
                 result = await asyncio.gather(*tasks)
             converted_blocks_timestamp = []
             for block in result:
@@ -219,21 +227,18 @@ class ConsensusDashboard:
 
             self.block_time = sum(time_diffs) / len(time_diffs)
 
-            logger.info(f"Updated block time:{self.block_time}")
+            logger.info(f"Updated block time: {self.block_time}s")
         except Exception as e:
             logger.error(f"Failed to update block time: {e}")
 
     def update_upgrade_time(self):
         try:
             logger.debug(f"Calculating estimated upgrade time")
-            current_time_unix = int(
-                datetime.now().replace(tzinfo=timezone.utc).timestamp()
-            )
+
             blocks_left = self.upgrade_height - self.node_height
             _time_left_seconds = int(blocks_left * self.block_time)
             self.upgrade_time_left_seconds = _time_left_seconds
-            self.upgrade_time_unix = _time_left_seconds + current_time_unix
-            logger.debug(f"Upgrade time UNIX: {self.upgrade_time_unix}")
+            logger.debug(f"Upgrade time left: {self.upgrade_time_left_seconds}")
         except Exception as e:
             logger.error(f"Failed to estimate upgrade time: {e}")
 
@@ -299,9 +304,7 @@ class ConsensusDashboard:
             )
             self.prevoting_validators = _online_prevote
             self.precommitting_validators = _online_precommit
-            logger.info(
-                f"Updated consensus state | {data['round_state']['height/round/step']}"
-            )
+            logger.info(f"Updated consensus state: {data['round_state']['height/round/step']}")
 
         except Exception as e:
             logger.error(
@@ -354,7 +357,7 @@ class ConsensusDashboard:
                 _symbol = _prevote if _prevote else "[X]".ljust(12)
                 _color = "bold green" if _prevote else "bold red"
                 column_data[column_index].append(
-                    f"{_index_str}{moniker}{_voting_power:.1f}%  [{_color}]{_symbol}[/{_color}]"
+                    f"{_index_str}{moniker}{str(f'{_voting_power:.1f}%').ljust(5)} [{_color}]{_symbol}[/{_color}]"
                 )
 
             else:
@@ -369,7 +372,7 @@ class ConsensusDashboard:
                 _second_symbol = _positive_symbol if _precommit else _negative_symbol
 
                 column_data[column_index].append(
-                    f"{_index_str}{moniker}{_voting_power:.1f}%  {_first_symbol}{_second_symbol.ljust(10)}"
+                    f"{_index_str}{moniker}{str(f'{_voting_power:.1f}%').ljust(5)} {_first_symbol}{_second_symbol.ljust(10)}"
                 )
 
         max_rows = max(len(col) for col in column_data)
@@ -388,13 +391,6 @@ class ConsensusDashboard:
 
     async def start(self):
         try:
-            # Initialize previous state caches
-            self.previous_node_status = {}
-            self.previous_consensus_state = {}
-            self.previous_validators = []
-            self.previous_upgrade_info = {}
-            self.previous_block_time = None
-
             # Dirty flags
             self.dirty_network_info = True
             self.dirty_consensus_info = True
@@ -411,87 +407,85 @@ class ConsensusDashboard:
                     log_panel = Panel(log_renderable, expand=True, box=box.SIMPLE)
                     self.layout["header"]["logs"].update(log_panel)
 
-                    # Perform batch updates
                     await self.batch_update_data()
 
-                    # Update upgrade time
-                    if self.upgrade_height and self.node_height and self.block_time:
-                        self.update_upgrade_time()
-
-                    # Update network info
                     new_node_status = {
                         "synced": self.synced,
                         "node_height": self.node_height,
                         "chain_id": self.chain_id,
                         "block_time": self.block_time,
                     }
-                    if self.has_data_changed(
-                        new_node_status, self.previous_node_status
-                    ):
+
+                    new_upgrade_info = {
+                        "upgrade_name": self.upgrade_name,
+                        "upgrade_height": self.upgrade_height,
+                        # "upgrade_time_left_seconds": self.upgrade_time_left_seconds,
+                    }
+                    
+                    if self.has_data_changed(new_node_status, self.previous_node_status) or self.has_data_changed(new_upgrade_info, self.previous_upgrade_info):
+                        logger.debug(f"Node status or upgrade info has changed")
+
                         self.dirty_network_info = True
                         network_info = (
-                            f"[bold cyan]Node Online & Synced:[/bold cyan] {self.synced} | {self.node_height}\n"
+                            f"[bold cyan]Node Online & Synced:[/bold cyan] {self.synced}\n"
+                            f"[bold cyan]Height:[/bold cyan] {self.node_height}\n"
                             f"[bold cyan]Chain ID:[/bold cyan] {self.chain_id}\n"
                         )
                         if self.block_time:
-                            network_info += f"[bold cyan]Block time:[/bold cyan] {self.block_time:.4}\n"
+                            network_info += f"[bold cyan]Block time:[/bold cyan] {self.block_time:.4}s\n"
 
-                        # Upgrade information
-                        new_upgrade_info = {
-                            "upgrade_name": self.upgrade_name,
-                            "upgrade_height": self.upgrade_height,
-                            "upgrade_time_unix": self.upgrade_time_unix,
-                            "upgrade_time_left_seconds": self.upgrade_time_left_seconds,
-                        }
-                        if self.has_data_changed(
-                            new_upgrade_info, self.previous_upgrade_info
-                        ):
                             if self.upgrade_height and self.node_height:
+                                self.update_upgrade_time()
                                 blocks_left = self.upgrade_height - self.node_height
                                 network_info += (
                                     f"[bold cyan]Upgrade:[/bold cyan] {self.upgrade_name} | "
                                     f"Height: {self.upgrade_height} | Blocks left: {blocks_left}"
                                 )
-                                if self.upgrade_time_unix:
-                                    time = datetime.fromtimestamp(
-                                        self.upgrade_time_unix, timezone.utc
-                                    )
-                                    time_in_user_tz = time.astimezone(
-                                        self.user_tz
-                                    ).strftime("%Y-%m-%d %H:%M:%S")
+                                if self.upgrade_time_left_seconds and self.upgrade_time_left_seconds >= 0:
+                                    current_time_unix = int(datetime.now().replace(tzinfo=timezone.utc).timestamp())
+                                    upgrade_time_unix = self.upgrade_time_left_seconds + current_time_unix
+
+                                    time = datetime.fromtimestamp(upgrade_time_unix, timezone.utc)
+                                    time_in_user_tz = time.astimezone(self.user_tz).strftime("%Y-%m-%d %H:%M:%S")
                                     network_info += f" | Time: {time_in_user_tz}"
 
-                                    if self.upgrade_time_left_seconds:
-                                        if self.upgrade_time_left_seconds > 0:
-                                            hours, remainder = divmod(
-                                                self.upgrade_time_left_seconds, 3600
-                                            )
-                                            minutes, seconds = divmod(remainder, 60)
-                                            human_readable_countdown = f"in {hours} hours {minutes} minutes {seconds} seconds"
-                                            network_info += (
-                                                f" ({human_readable_countdown})"
-                                            )
-                                        else:
-                                            network_info += " (already occurred)"
-                            self.previous_upgrade_info = new_upgrade_info
+                                    days, remainder = divmod(self.upgrade_time_left_seconds, 86400)
+                                    hours, remainder = divmod(remainder, 3600)
+                                    minutes, seconds = divmod(remainder, 60)
 
-                        # Update the network info panel
-                        if self.dirty_network_info:
-                            network_info_panel = Panel(
-                                network_info,
-                                title="Network Info",
-                                border_style="blue_violet",
-                                expand=True,
-                            )
-                            self.layout["header"]["network_info"].update(
-                                network_info_panel
-                            )
-                            self.previous_node_status = new_node_status
+                                    parts = []
+                                    if days > 0:
+                                        parts.append(f"{days} days")
+                                    if hours > 0:
+                                        parts.append(f"{hours} hours")
+                                    if minutes > 0:
+                                        parts.append(f"{minutes} minutes")
+                                    if seconds > 0 or not parts:
+                                        parts.append(f"{seconds} seconds")
 
-                    # Update consensus info
-                    if self.has_data_changed(
-                        self.consensus_state, self.previous_consensus_state
-                    ):
+                                    human_readable_countdown = "in " + " ".join(parts)
+
+                                    network_info += (
+                                        f" ({human_readable_countdown})"
+                                    )
+                                else:
+                                    network_info += " (already occurred)"
+                        
+                        network_info_panel = Panel(
+                            network_info,
+                            title="Network Info",
+                            border_style="blue_violet",
+                            expand=True,
+                        )
+                        self.layout["header"]["network_info"].update(
+                            network_info_panel
+                        )
+                        self.previous_node_status = new_node_status.copy()
+                        self.previous_upgrade_info = new_upgrade_info.copy()
+
+                    if self.has_data_changed(self.consensus_state, self.previous_consensus_state):
+                        logger.debug(f"Consensus state has changed")
+                        
                         self.dirty_consensus_info = True
                         self.layout["main"].update(self.generate_table())
 
@@ -534,28 +528,28 @@ class ConsensusDashboard:
                             f"[bold cyan]Prevoting validators:[/bold cyan] {self.prevoting_validators}\n"
                             f"[bold cyan]Precommitting validators:[/bold cyan] {self.precommitting_validators}\n"
                         )
-                        if self.dirty_consensus_info:
-                            consensus_info_panel = Panel(
-                                consensus_info,
-                                title="Consensus Info",
-                                border_style="green",
-                                expand=True,
-                            )
-                            self.layout["header"]["consensus_info"].update(
-                                consensus_info_panel
-                            )
-                            self.previous_consensus_state = self.consensus_state.copy()
+                        consensus_info_panel = Panel(
+                            consensus_info,
+                            title="Consensus Info",
+                            border_style="green",
+                            expand=True,
+                        )
+                        self.layout["header"]["consensus_info"].update(
+                            consensus_info_panel
+                        )
+                        
+                        self.previous_consensus_state = self.consensus_state.copy()
 
                     if any(
                         [
                             self.dirty_network_info,
-                            self.dirty_consensus_info,
+                            self.dirty_consensus_info
                         ]
                     ):
                         live.refresh()
-                        # Reset the dirty flags after refreshing
                         self.dirty_network_info = False
                         self.dirty_consensus_info = False
+
         finally:
             await self.close_session()
             self.console.clear()
