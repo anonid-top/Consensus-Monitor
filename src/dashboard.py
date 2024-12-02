@@ -396,7 +396,6 @@ class ConsensusDashboard:
             # Dirty flags
             self.dirty_network_info = True
             self.dirty_consensus_info = True
-            self.dirty_footer = True
 
             with Live(
                 self.layout,
@@ -486,7 +485,6 @@ class ConsensusDashboard:
                                 network_info_panel
                             )
                             self.previous_node_status = new_node_status
-                            self.dirty_network_info = False
 
                     # Update consensus info
                     if self.has_data_changed(
@@ -519,11 +517,11 @@ class ConsensusDashboard:
                         votes_commits_renderable = (
                             f"{prevote_bar}\n{precommit_bar}\n{step_bar}"
                         )
-                        if self.dirty_footer:
-                            votes_commits_panel = Panel(
-                                votes_commits_renderable, box=box.SIMPLE, expand=True
-                            )
-                            self.layout["footer"].update(votes_commits_panel)
+
+                        votes_commits_panel = Panel(
+                            votes_commits_renderable, box=box.SIMPLE, expand=True
+                        )
+                        self.layout["footer"].update(votes_commits_panel)
 
                         consensus_info = (
                             f"[bold cyan]Height/Round/Step:[/bold cyan] {self.consensus_state['height']}/"
@@ -545,17 +543,17 @@ class ConsensusDashboard:
                                 consensus_info_panel
                             )
                             self.previous_consensus_state = self.consensus_state.copy()
-                            self.dirty_consensus_info = False
 
-                    # Refresh only if any dirty flag is set
-                    if any(
-                        [
-                            self.dirty_network_info,
-                            self.dirty_consensus_info,
-                            self.dirty_footer,
-                        ]
-                    ):
-                        live.refresh()
+                        if any(
+                            [
+                                self.dirty_network_info,
+                                self.dirty_consensus_info,
+                            ]
+                        ):
+                            live.refresh()
+                            # Reset the dirty flags after refreshing
+                            self.dirty_network_info = False
+                            self.dirty_consensus_info = False
 
                     # Sleep for the refresh interval
                     await asyncio.sleep(1 / self.refresh_per_second)
