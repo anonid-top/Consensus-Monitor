@@ -38,9 +38,7 @@ class AioHttpCalls:
         self.rpc = rpc
         self.timeout = timeout
         self.session = session
-        self._manage_session = (
-            session is None
-        )  # Indicates if this class should manage the session lifecycle.
+        self._manage_session = session is None # Indicates if this class should manage the session lifecycle.  
 
     async def __aenter__(self):
         if not self.session:

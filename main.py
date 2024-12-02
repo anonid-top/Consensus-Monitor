@@ -1,10 +1,10 @@
 import asyncio
 import signal
+from platform import system
 from aiohttp import ClientSession
 from utils.args import args
 from src.dashboard import ConsensusDashboard
 from utils.logger import logger
-
 
 async def run_dashboard(dashboard: ConsensusDashboard):
     """
@@ -41,7 +41,6 @@ async def main():
             session=session,
         )
 
-        # Define a shutdown handler
         def shutdown_handler():
             logger.info("Shutdown signal received. Stopping Dashboard...")
             for task in asyncio.all_tasks():
@@ -49,9 +48,11 @@ async def main():
 
         loop = asyncio.get_event_loop()
 
-        # Attach signal handlers
         for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, shutdown_handler)
+            try:
+                loop.add_signal_handler(sig, shutdown_handler)
+            except NotImplementedError:
+                logger.warning(f"Signal handlers are not supported on this platform: {system()}")
 
         try:
             await run_dashboard(dashboard)
@@ -66,4 +67,7 @@ async def main():
 
 
 if __name__ == "__main__":
+    if system() == "Windows":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
     asyncio.run(main())
