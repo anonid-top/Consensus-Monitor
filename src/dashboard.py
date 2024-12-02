@@ -404,6 +404,7 @@ class ConsensusDashboard:
                 self.layout,
                 refresh_per_second=self.refresh_per_second,
                 auto_refresh=False,
+                screen=True,
             ) as live:
                 while True:
                     log_renderable = self.rich_logger.get_logs()
