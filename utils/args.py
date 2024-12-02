@@ -99,7 +99,7 @@ def parse_args():
         type=float,
         help="Refresh latest height & node sync status every N second",
         required=False,
-        default=10,
+        default=5,
     )
 
     parser.add_argument(
