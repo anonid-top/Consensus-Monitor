@@ -309,25 +309,23 @@ class ConsensusDashboard:
             )
             return
 
-    def create_bar(self, label: str, value: float) -> str:
-        bar_length = 60
-        filled_length = int(value * bar_length // 100)
-        if self.disable_emojis:
-            bar = "X" * filled_length + "-" * (bar_length - filled_length)
-        else:
-            bar = "█" * filled_length + "□" * (bar_length - filled_length)
-        return f"[bold cyan]{label}[/bold cyan] {bar} {value:.1f}%"
-
-    def create_step_bar(self, label: str, value: float, _max: float = 6) -> str:
+    def create_progress_bar(self, label: str, value: float, _max: float = 100, is_percentage: bool = True) -> str:
+        
         value = max(0, min(value, _max))
+        
         bar_length = 60
         filled_length = int(value * bar_length // _max)
+        
         if self.disable_emojis:
             bar = "X" * filled_length + "-" * (bar_length - filled_length)
         else:
             bar = "█" * filled_length + "□" * (bar_length - filled_length)
-        return f"[bold cyan]{label}[/bold cyan] {bar} {value}/{_max}"
-
+        
+        if is_percentage:
+            return f"[bold cyan]{label}[/bold cyan] {bar} {value:.1f}%"
+        else:
+            return f"[bold cyan]{label}[/bold cyan] {bar} {value}/{_max}"
+    
     def generate_table(self) -> Table:
         table = Table(show_lines=False, expand=True, box=None)
         table.add_column("", justify="left")
@@ -406,6 +404,7 @@ class ConsensusDashboard:
                 auto_refresh=False,
                 screen=True,
             ) as live:
+                
                 while True:
                     log_renderable = self.rich_logger.get_logs()
                     log_panel = Panel(log_renderable, expand=True, box=box.SIMPLE)
@@ -495,14 +494,26 @@ class ConsensusDashboard:
                     ):
                         self.dirty_consensus_info = True
                         self.layout["main"].update(self.generate_table())
-                        prevote_bar = self.create_bar(
-                            "[ Prevotes ]", self.consensus_state["prevote_array"]
+
+                        prevote_bar = self.create_progress_bar(
+                            label="[ Prevotes ]",
+                            value=self.consensus_state["prevote_array"],
+                            _max = 100,
+                            is_percentage=True
                         )
-                        precommit_bar = self.create_bar(
-                            "[Precommits]", self.consensus_state["precommits_array"]
+
+                        precommit_bar = self.create_progress_bar(
+                            label="[Precommits]",
+                            value=self.consensus_state["precommits_array"],
+                            _max = 100,
+                            is_percentage=True
                         )
-                        step_bar = self.create_step_bar(
-                            "[   Step   ]", self.consensus_state["round"]
+
+                        step_bar = self.create_progress_bar(
+                            label="[   Step   ]",
+                            value=self.consensus_state["step"],
+                            _max = 6,
+                            is_percentage=False
                         )
 
                         votes_commits_renderable = (
@@ -520,7 +531,6 @@ class ConsensusDashboard:
                             f"[bold cyan]Proposer:[/bold cyan] {self.consensus_state['proposer_moniker']}\n"
                             f"[bold cyan]Proposal Hash:[/bold cyan] {self.consensus_state['hash'] or 'N/A'}\n"
                             f"[bold cyan]Online validators:[/bold cyan] {self.online_validators} / {len(self.validators)}\n"
-                            f"[bold cyan]Offline validators:[/bold cyan] {len(self.validators) - self.online_validators}\n"
                             f"[bold cyan]Prevoting validators:[/bold cyan] {self.prevoting_validators}\n"
                             f"[bold cyan]Precommitting validators:[/bold cyan] {self.precommitting_validators}\n"
                         )
