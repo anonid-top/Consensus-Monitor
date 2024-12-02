@@ -309,23 +309,25 @@ class ConsensusDashboard:
             )
             return
 
-    def create_progress_bar(self, label: str, value: float, _max: float = 100, is_percentage: bool = True) -> str:
-        
+    def create_progress_bar(
+        self, label: str, value: float, _max: float = 100, is_percentage: bool = True
+    ) -> str:
+
         value = max(0, min(value, _max))
-        
+
         bar_length = 60
         filled_length = int(value * bar_length // _max)
-        
+
         if self.disable_emojis:
             bar = "X" * filled_length + "-" * (bar_length - filled_length)
         else:
             bar = "█" * filled_length + "□" * (bar_length - filled_length)
-        
+
         if is_percentage:
             return f"[bold cyan]{label}[/bold cyan] {bar} {value:.1f}%"
         else:
             return f"[bold cyan]{label}[/bold cyan] {bar} {value}/{_max}"
-    
+
     def generate_table(self) -> Table:
         table = Table(show_lines=False, expand=True, box=None)
         table.add_column("", justify="left")
@@ -403,7 +405,7 @@ class ConsensusDashboard:
                 auto_refresh=False,
                 screen=True,
             ) as live:
-                
+
                 while True:
                     log_renderable = self.rich_logger.get_logs()
                     log_panel = Panel(log_renderable, expand=True, box=box.SIMPLE)
@@ -496,22 +498,22 @@ class ConsensusDashboard:
                         prevote_bar = self.create_progress_bar(
                             label="[ Prevotes ]",
                             value=self.consensus_state["prevote_array"],
-                            _max = 100,
-                            is_percentage=True
+                            _max=100,
+                            is_percentage=True,
                         )
 
                         precommit_bar = self.create_progress_bar(
                             label="[Precommits]",
                             value=self.consensus_state["precommits_array"],
-                            _max = 100,
-                            is_percentage=True
+                            _max=100,
+                            is_percentage=True,
                         )
 
                         step_bar = self.create_progress_bar(
                             label="[   Step   ]",
                             value=self.consensus_state["step"],
-                            _max = 6,
-                            is_percentage=False
+                            _max=6,
+                            is_percentage=False,
                         )
 
                         votes_commits_renderable = (
@@ -544,20 +546,16 @@ class ConsensusDashboard:
                             )
                             self.previous_consensus_state = self.consensus_state.copy()
 
-                        if any(
-                            [
-                                self.dirty_network_info,
-                                self.dirty_consensus_info,
-                            ]
-                        ):
-                            live.refresh()
-                            # Reset the dirty flags after refreshing
-                            self.dirty_network_info = False
-                            self.dirty_consensus_info = False
-
-                    # Sleep for the refresh interval
-                    await asyncio.sleep(1 / self.refresh_per_second)
-
+                    if any(
+                        [
+                            self.dirty_network_info,
+                            self.dirty_consensus_info,
+                        ]
+                    ):
+                        live.refresh()
+                        # Reset the dirty flags after refreshing
+                        self.dirty_network_info = False
+                        self.dirty_consensus_info = False
         finally:
             await self.close_session()
             self.console.clear()
