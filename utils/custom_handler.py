@@ -1,7 +1,6 @@
 import logging
 from collections import deque
 
-
 class RichPanelLogHandler(logging.Handler):
     def __init__(self, max_logs=10):
         super().__init__()

@@ -78,7 +78,7 @@ def parse_args():
         type=float,
         help="Refresh consensus state every N second",
         required=False,
-        default=3,
+        default=1,
     )
     parser.add_argument(
         "--refresh-upgrade-plan",
@@ -125,6 +125,14 @@ def parse_args():
         required=False,
         default=3,
     )
+
+    parser.add_argument(
+        "--genesis",
+        type=str,
+        help="URL to genensis.json file to parse validators",
+        required=False,
+    )
+
     args = parser.parse_args()
 
     return args

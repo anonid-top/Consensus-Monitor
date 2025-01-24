@@ -69,6 +69,28 @@ class AioHttpCalls:
             )
             traceback.print_exc()
 
+    async def save_genesis(self, url, callback):
+        try:
+            async with self.session.get(url, timeout=self.timeout) as response:
+                if response.status == 200:
+                    raw_data = await response.text()
+                    parsed_data = json.loads(raw_data)
+                    return await callback(parsed_data)
+                else:
+                    logger.error(
+                        f"Request to {url} failed with status code {response.status}"
+                    )
+                    return None
+        except aiohttp.ClientError as e:
+            logger.error(f"Issue with making request to {url}: {e}")
+        except TimeoutError as e:
+            logger.error(f"Issue with making request to {url}. TimeoutError: {e}")
+        except Exception as e:
+            logger.error(
+                f"An unexpected error occurred while making request to {url}: {e}"
+            )
+            traceback.print_exc()
+
     async def handle_abci_request(self, callback, hex_data, path, prove=False) -> bytes:
         try:
             payload = {
@@ -235,3 +257,13 @@ class AioHttpCalls:
             return data["result"]
 
         return await self.handle_request(url, process_response)
+
+    async def get_genesis(self, genesis_url: str) -> str:
+        logger.debug(f"Requesting {genesis_url}")
+
+        async def process_response(response):
+            # data = await response
+            return response
+
+        return await self.save_genesis(genesis_url, process_response)
+    

@@ -1,12 +1,14 @@
 import re
 import asyncio
+import requests
+
 from rich.console import Console
 from rich.table import Table
 from rich.live import Live
 from rich.layout import Layout
 from rich.panel import Panel
 from src.calls import AioHttpCalls
-from src.converter import pubkey_to_consensus_hex
+from src.converter import pubkey_to_hex
 from utils.logger import logger
 from rich import box
 from datetime import datetime, timezone, timedelta
@@ -29,9 +31,11 @@ class ConsensusDashboard:
         columns: int,
         hashes: bool,
         session: ClientSession,
+        genesis: str
     ):
         self.rpc = rpc
         self.session = session
+        self.genesis = genesis
         self.rich_logger = None
         for handler in logger.handlers:
             if "RichPanelLogHandler" in str(handler):
@@ -41,6 +45,9 @@ class ConsensusDashboard:
         self.layout = Layout()
         self.console = Console()
         self.validators = []
+
+        # self.genesis_validators = []
+
         self.consensus_state = {}
 
         self.block_time = None
@@ -151,20 +158,33 @@ class ConsensusDashboard:
                     validators = []
                     total_stake = sum(int(x["tokens"]) for x in sorted_vals)
                     for validator in sorted_vals:
-                        _consensus_pub_key = validator.get("consensus_pubkey", {}).get(
-                            "key"
-                        )
-                        if not _consensus_pub_key:
+                        consensus_pubkey_info = validator.get("consensus_pubkey", {})
+                        consensus_pub_key = consensus_pubkey_info.get("key")
+                        consensus_pub_key_type = consensus_pubkey_info.get("@type")
+
+                        if not consensus_pub_key or not consensus_pub_key_type:
+                            missing_fields = []
+                            if not consensus_pub_key:
+                                missing_fields.append("consensus_pub_key")
+                            if not consensus_pub_key_type:
+                                missing_fields.append("consensus_pub_key_type")
+                            
                             logger.warning(
-                                f"Skipping validator due too missing consensus_pub_key: {validator}"
+                                f"Skipping validator due to missing fields ({', '.join(missing_fields)}): {validator}"
                             )
                             continue
+                        
+                        try:
+                            _hex = pubkey_to_hex(pub_key=consensus_pub_key, key_type=consensus_pub_key_type)
+                        except (Exception, ValueError) as e:
+                            logger.error(f"Failed to convert validator's ({consensus_pubkey_info}) pub key to hex: {e}")
+                            continue
+
                         _moniker = self.demojize(
                             validator.get("description", {}).get("moniker", "N/A")
                         )
                         _tokens = int(validator["tokens"])
 
-                        _hex = pubkey_to_consensus_hex(pub_key=_consensus_pub_key)
                         validators.append(
                             {
                                 "moniker": _moniker,
@@ -176,6 +196,49 @@ class ConsensusDashboard:
                     self.validators = validators
                     logger.info(
                         f"Updated validators | Current active set: {len(self.validators)}"
+                    )
+
+        except Exception as e:
+            logger.error(f"An error occurred while updating validators {e}")
+
+    async def set_genesis_validators(self):
+        try:
+            async with AioHttpCalls(rpc=self.rpc, session=self.session, timeout=30) as session:
+                genesis_data = await session.get_genesis(genesis_url=self.genesis)
+
+                if not genesis_data:
+                    logger.error("Failed to get genesis. Will retry")
+                    return
+
+                if genesis_data:
+                    total_tokens = 0
+                    validators = []
+                    for tx in genesis_data['app_state']['genutil']['gen_txs']:
+                        for msg in tx['body']['messages']:
+                            if '@type' in msg and msg['@type'] == '/cosmos.staking.v1beta1.MsgCreateValidator':
+                                consensus_pubkey_info = msg['pubkey']
+                                total_tokens += int(msg['value']['amount'])
+
+                                try:
+                                    _hex = pubkey_to_hex(pub_key=consensus_pubkey_info['key'], key_type=consensus_pubkey_info['@type'])
+                                except (Exception, ValueError) as e:
+                                    logger.error(f"Failed to convert validator's ({consensus_pubkey_info}) pub key to hex: {e}")
+                                    continue
+
+                                validator = {
+                                    'moniker': self.demojize(msg['description']['moniker']),
+                                    'tokens': int(msg['value']['amount']),
+                                    'hex': _hex
+                                }
+                                validators.append(validator)
+                    sorted_vals = sorted(validators, key=lambda x: x['tokens'], reverse=True)
+
+                    for val in sorted_vals:
+                        val['vp'] = round((val['tokens'] / total_tokens) * 100, 4)
+
+                    self.validators = sorted_vals
+                    logger.info(
+                        f"Updated genesis validators | Current active set: {len(self.validators)}"
                     )
 
         except Exception as e:
@@ -195,14 +258,7 @@ class ConsensusDashboard:
                     logger.error(f"Failed to query node height to evaluate block time")
                     return
 
-                node_height = (
-                    int(node_status["sync_info"]["latest_block_height"])
-                    if node_status.get("sync_info", {}).get("latest_block_height")
-                    else None
-                )
-                if not node_height:
-                    logger.error("Failed to get latest node height to evaluate block time")
-                    return
+                node_height = int(node_status["sync_info"]["latest_block_height"])
 
                 tasks = []
                 for i in range(self.block_time_check_number):
@@ -342,7 +398,7 @@ class ConsensusDashboard:
         self.consensus_state["proposer_moniker"] = "N/A"
         for index, validator in enumerate(self.validators):
             column_index = index % self.columns
-            moniker = validator["moniker"][:15].ljust(18)
+            moniker = validator["moniker"][:15].ljust(17)
             _hex_short = validator["hex"][:12]
             _voting_power = validator["vp"]
 
@@ -391,9 +447,9 @@ class ConsensusDashboard:
 
     async def start(self):
         try:
-            # Dirty flags
             self.dirty_network_info = True
             self.dirty_consensus_info = True
+            # self.dirty_logs = True
 
             with Live(
                 self.layout,
@@ -455,19 +511,17 @@ class ConsensusDashboard:
 
                                     parts = []
                                     if days > 0:
-                                        parts.append(f"{days} days")
+                                        parts.append(f"{days} day{'s' if days > 1 else ''}")
                                     if hours > 0:
-                                        parts.append(f"{hours} hours")
+                                        parts.append(f"{hours} hour{'s' if hours > 1 else ''}")
                                     if minutes > 0:
-                                        parts.append(f"{minutes} minutes")
+                                        parts.append(f"{minutes} minute{'s' if minutes > 1 else ''}")
                                     if seconds > 0 or not parts:
-                                        parts.append(f"{seconds} seconds")
+                                        parts.append(f"{seconds} second{'s' if seconds > 1 else ''}")
 
                                     human_readable_countdown = "in " + " ".join(parts)
 
-                                    network_info += (
-                                        f" ({human_readable_countdown})"
-                                    )
+                                    network_info += f" ({human_readable_countdown})"
                                 else:
                                     network_info += " (already occurred)"
                         
@@ -540,6 +594,7 @@ class ConsensusDashboard:
                         
                         self.previous_consensus_state = self.consensus_state.copy()
 
+                    ### TO DO [MAKE REFRESH WHEN DATA OR LOGS GET UPDATED]
                     if any(
                         [
                             self.dirty_network_info,
@@ -549,6 +604,9 @@ class ConsensusDashboard:
                         live.refresh()
                         self.dirty_network_info = False
                         self.dirty_consensus_info = False
+                    
+                    # live.refresh()
+
 
         finally:
             await self.close_session()
@@ -603,7 +661,7 @@ class ConsensusDashboard:
                 self.update_node_status, self.refresh_node, "_last_node_status_update"
             ),
             self.update_data(
-                self.update_validators,
+                self.set_genesis_validators if self.genesis is not None else self.update_validators,
                 self.refresh_validators,
                 "_last_validators_update",
             ),

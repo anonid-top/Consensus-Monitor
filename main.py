@@ -37,6 +37,7 @@ async def main():
             user_tz=args.tz,
             block_time_number=args.block_time_number,
             columns=args.columns,
+            genesis = args.genesis,
             hashes=args.hashes,
             session=session,
         )
@@ -52,7 +53,7 @@ async def main():
             try:
                 loop.add_signal_handler(sig, shutdown_handler)
             except NotImplementedError:
-                logger.warning(f"Signal handlers are not supported on this platform: {system()}")
+                logger.warning(f"Failed to add {sig} signal. Signal handlers are not supported on this platform: {system()}")
 
         try:
             await run_dashboard(dashboard)
