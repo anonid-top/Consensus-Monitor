@@ -202,43 +202,44 @@ class ConsensusDashboard:
 
     async def set_genesis_validators(self):
         try:
-            async with AioHttpCalls(rpc=self.rpc, session=self.session, timeout=30) as session:
-                genesis_data = await session.get_genesis(genesis_url=self.genesis)
+            if not self.validators:
+                async with AioHttpCalls(rpc=self.rpc, session=self.session, timeout=30) as session:
+                    genesis_data = await session.get_genesis(genesis_url=self.genesis)
 
-                if not genesis_data:
-                    logger.error("Failed to get genesis. Will retry")
-                    return
+                    if not genesis_data:
+                        logger.error("Failed to get genesis. Will retry")
+                        return
 
-                if genesis_data:
-                    total_tokens = 0
-                    validators = []
-                    for tx in genesis_data['app_state']['genutil']['gen_txs']:
-                        for msg in tx['body']['messages']:
-                            if '@type' in msg and msg['@type'] == '/cosmos.staking.v1beta1.MsgCreateValidator':
-                                consensus_pubkey_info = msg['pubkey']
-                                total_tokens += int(msg['value']['amount'])
+                    if genesis_data:
+                        total_tokens = 0
+                        validators = []
+                        for tx in genesis_data['app_state']['genutil']['gen_txs']:
+                            for msg in tx['body']['messages']:
+                                if '@type' in msg and msg['@type'] == '/cosmos.staking.v1beta1.MsgCreateValidator':
+                                    consensus_pubkey_info = msg['pubkey']
+                                    total_tokens += int(msg['value']['amount'])
 
-                                try:
-                                    _hex = pubkey_to_hex(pub_key=consensus_pubkey_info['key'], key_type=consensus_pubkey_info['@type'])
-                                except (Exception, ValueError) as e:
-                                    logger.error(f"Failed to convert validator's ({consensus_pubkey_info}) pub key to hex: {e}")
-                                    continue
+                                    try:
+                                        _hex = pubkey_to_hex(pub_key=consensus_pubkey_info['key'], key_type=consensus_pubkey_info['@type'])
+                                    except (Exception, ValueError) as e:
+                                        logger.error(f"Failed to convert validator's ({consensus_pubkey_info}) pub key to hex: {e}")
+                                        continue
 
-                                validator = {
-                                    'moniker': self.demojize(msg['description']['moniker']),
-                                    'tokens': int(msg['value']['amount']),
-                                    'hex': _hex
-                                }
-                                validators.append(validator)
-                    sorted_vals = sorted(validators, key=lambda x: x['tokens'], reverse=True)
+                                    validator = {
+                                        'moniker': self.demojize(msg['description']['moniker']),
+                                        'tokens': int(msg['value']['amount']),
+                                        'hex': _hex
+                                    }
+                                    validators.append(validator)
+                        sorted_vals = sorted(validators, key=lambda x: x['tokens'], reverse=True)
 
-                    for val in sorted_vals:
-                        val['vp'] = round((val['tokens'] / total_tokens) * 100, 4)
+                        for val in sorted_vals:
+                            val['vp'] = round((val['tokens'] / total_tokens) * 100, 4)
 
-                    self.validators = sorted_vals
-                    logger.info(
-                        f"Updated genesis validators | Current active set: {len(self.validators)}"
-                    )
+                        self.validators = sorted_vals
+                        logger.info(
+                            f"Updated genesis validators | Current active set: {len(self.validators)}"
+                        )
 
         except Exception as e:
             logger.error(f"An error occurred while updating validators {e}")
